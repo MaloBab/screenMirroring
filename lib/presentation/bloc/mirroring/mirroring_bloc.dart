@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../../../domain/entities/connection_info.dart';
-import '../../../../domain/usecases/start_mirroring.dart';
-import '../../../../domain/usecases/stop_mirroring.dart';
+import '../../../../domain/usecases/start_mirroring.dart' as start_mirroring;
+import '../../../domain/usecases/stop_mirroring.dart' as stop_mirroring;
 
 // Events
 abstract class MirroringEvent extends Equatable {
@@ -71,8 +71,8 @@ class MirroringError extends MirroringState {
 
 // Bloc
 class MirroringBloc extends Bloc<MirroringEvent, MirroringState> {
-  final StartMirroring startMirroring;
-  final StopMirroring stopMirroring;
+  final start_mirroring.StartMirroring startMirroring;
+  final stop_mirroring.StopMirroring stopMirroring;
   
   StreamSubscription? _statsSubscription;
 

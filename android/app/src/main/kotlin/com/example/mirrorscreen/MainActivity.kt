@@ -1,4 +1,4 @@
-package com.example.mirror_screen
+package com.example.mirrorscreen
 
 import android.app.Activity
 import android.content.Context

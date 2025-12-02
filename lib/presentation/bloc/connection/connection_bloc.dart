@@ -1,7 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import '../../../domain/entities/connection_info.dart';
-import '../../../domain/usecases/start_mirroring.dart';
+import '../../../domain/usecases/get_connection_info.dart';
 
 // Events
 abstract class ConnectionEvent extends Equatable {
