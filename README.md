@@ -1,89 +1,202 @@
 
-# MirrorScreen Pro
+# MirrorScreen Pro - Application de Screen Mirroring
 
-Application Flutter professionnelle de screen mirroring permettant d'afficher l'écran de votre téléphone sur une télévision via WiFi.
+Application Flutter professionnelle pour diffuser l'écran de votre téléphone sur une TV/décodeur via WiFi avec découverte automatique des appareils.
 
-## 🎯 Fonctionnalités
+## 🌟 Fonctionnalités
 
-* **Mirroring en temps réel** : Diffusion de l'écran à 30 FPS
-* **Qualité ajustable** : Contrôle de la qualité de 10% à 100%
-* **Connexion WiFi** : Aucun câble nécessaire
-* **QR Code** : Connexion rapide via scan
-* **Statistiques en direct** : FPS, débit, durée, nombre d'images
-* **Interface moderne** : Design élégant avec animations fluides
-* **Arrière-plan** : Fonctionne même quand l'app est en arrière-plan
+* ✅ **Découverte automatique** des appareils compatibles (TV, Chromecast, Miracast, DLNA)
+* ✅ **Connexion directe** sans QR code ni application tierce
+* ✅ **Adaptation automatique** de la résolution selon l'écran cible
+* ✅ **Support multi-protocoles** : DLNA, Chromecast, Miracast
+* ✅ **Qualité adaptative** selon la bande passante
+* ✅ **Interface moderne** avec animations fluides
+* ✅ **Statistiques en temps réel** (FPS, débit, qualité)
 
-## 🏗️ Architecture
+## 📋 Prérequis
 
-L'application suit une architecture Clean Architecture avec:
+* Flutter SDK ≥ 3.0.0
+* Android SDK ≥ 21 (Android 5.0 Lollipop)
+* Un appareil compatible : Smart TV, Chromecast, Miracast ou DLNA
 
-### Domain Layer
+## 🚀 Installation
 
-* **Entities** : `ConnectionInfo`, `MirroringStats`
-* **Repositories** : Interfaces abstraites
-* **Use Cases** : `StartMirroring`, `StopMirroring`, `GetConnectionInfo`
-
-### Data Layer
-
-* **Data Sources** : `ScreenCaptureSource`, `NetworkSource`
-* **Repository Implementation** : `MirroringRepositoryImpl`
-
-### Presentation Layer
-
-* **BLoC** : Gestion d'état avec `flutter_bloc`
-* **Pages** : Interface utilisateur
-* **Widgets** : Composants réutilisables
-
-### Core
-
-* **Services** : `WebSocketService`, `ScreenCaptureService`, `PermissionService`
-* **Dependency Injection** : `get_it`
-* **Theme** : Configuration du design
-
-## 📦 Installation
-
-### Prérequis
-
-* Flutter SDK 3.0+
-* Dart 3.0+
-* Android Studio / Xcode
-
-### Étapes
-
-1. Clonez le repository :
+### 1. Cloner le projet
 
 ```bash
-git clone https://github.com/votre-repo/mirror_screen.git
-cd mirror_screen
+git clone <repository-url>
+cd malobab-screenmirroring
 ```
 
-2. Installez les dépendances :
+### 2. Installer les dépendances
 
 ```bash
 flutter pub get
 ```
 
-3. Lancez l'application :
+### 3. Configuration Android
+
+Ajoutez les permissions suivantes dans `android/app/src/main/AndroidManifest.xml` (déjà incluses) :
+
+```xml
+<uses-permission android:name="android.permission.INTERNET"/>
+<uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+<uses-permission android:name="android.permission.WAKE_LOCK"/>
+<uses-permission android:name="android.permission.RECORD_DISPLAY"/>
+```
+
+### 4. Configuration native (Important)
+
+Le fichier `MainActivity.kt` contient déjà l'implémentation de la capture d'écran via `MediaProjection`.
+
+**Vérifications importantes :**
+
+* Assurez-vous que les versions de Gradle sont correctes
+* Kotlin version : 2.2.20
+* Android Gradle Plugin : 8.11.1
+
+## 🏗️ Architecture
+
+```
+lib/
+├── core/
+│   ├── di/                      # Injection de dépendances
+│   ├── services/                # Services principaux
+│   │   ├── device_discovery_service.dart    # Découverte appareils
+│   │   ├── mirroring_service.dart           # Service mirroring
+│   │   └── permission_service.dart          # Gestion permissions
+│   └── theme/                   # Thème de l'application
+├── data/                        # Couche données
+├── domain/
+│   ├── entities/                # Entités métier
+│   │   └── discovered_device.dart
+│   └── repositories/            # Interfaces repositories
+└── presentation/
+    ├── bloc/                    # Gestion d'état
+    │   ├── device_discovery/    # BLoC découverte
+    │   └── mirroring/           # BLoC mirroring
+    ├── pages/
+    │   ├── home_page.dart       # Page principale
+    │   └── device_list_page.dart # Liste appareils
+    └── widgets/                 # Composants UI
+```
+
+## 🔧 Utilisation
+
+### 1. Démarrage de l'application
 
 ```bash
 flutter run
 ```
 
-## 🔧 Configuration Android
+### 2. Workflow utilisateur
 
-### Permissions requises
+1. **Lancez l'application** sur votre téléphone
+2. **Appuyez sur "Rechercher des appareils"**
+   * L'application scanne automatiquement le réseau WiFi
+   * Les appareils compatibles s'affichent avec leurs caractéristiques
+3. **Sélectionnez votre TV/décodeur**
+   * Un simple tap sur l'appareil le sélectionne
+   * Les informations de l'appareil s'affichent
+4. **Ajustez les paramètres** (optionnel)
+   * Qualité : 10-100%
+   * Qualité adaptative : ajustement automatique
+5. **Appuyez sur "Démarrer le mirroring"**
+   * Une permission Android sera demandée
+   * Le streaming commence automatiquement
 
-Les permissions suivantes sont automatiquement demandées :
+## 🎯 Protocoles supportés
 
-* `INTERNET` : Connexion réseau
-* `ACCESS_WIFI_STATE` : État du WiFi
-* `ACCESS_NETWORK_STATE` : État du réseau
-* `FOREGROUND_SERVICE` : Service en arrière-plan
-* `RECORD_DISPLAY` : Capture d'écran
+### DLNA (Digital Living Network Alliance)
 
-### Code natif
+* **Port** : Variable (généralement 8080)
+* **Service mDNS** : `_dlna._tcp`
+* Compatible avec la majorité des Smart TV
 
-Le code Kotlin dans `MainActivity.kt` utilise l'API MediaProjection pour capturer l'écran.
+### Chromecast
+
+* **Port** : 8008, 8009
+* **Service mDNS** : `_googlecast._tcp`
+* Qualité optimale pour streaming
+
+### Miracast
+
+* **Port** : Variable
+* **Service mDNS** : `_miracast._tcp`
+* Standard WiFi Direct pour mirroring
+
+### Smart TV génériques
+
+* **Ports** : 8008, 8009, 9080, 7000, 55000
+* Détection par scan réseau
+
+## 📊 Adaptation de la résolution
+
+L'application adapte automatiquement la résolution selon l'écran cible :
+
+| Résolution écran  | Résolution envoyée | FPS   |
+| ------------------- | -------------------- | ----- |
+| 4K (3840x2160)      | 3840x2160            | 60    |
+| Full HD (1920x1080) | 1920x1080            | 30    |
+| HD (1280x720)       | 1280x720             | 30    |
+| Autre               | Résolution native   | 24-30 |
+
+## 🛠️ Dépannage
+
+### Aucun appareil détecté
+
+1. **Vérifiez votre réseau WiFi**
+   * Téléphone et TV sur le même réseau
+   * Pas de réseau invité (Guest Network)
+2. **Redémarrez votre TV/décodeur**
+   * Certains appareils nécessitent un redémarrage
+3. **Activez les fonctionnalités de mirroring**
+   * Smart View (Samsung)
+   * Screen Mirroring (LG, Sony)
+   * Cast (Android TV)
+
+### Qualité de streaming faible
+
+1. **Rapprochez-vous du routeur WiFi**
+2. **Réduisez la qualité** dans les paramètres
+3. **Activez la qualité adaptative**
+4. **Fermez les autres applications** consommant de la bande passante
+
+### Permission refusée
+
+1. Allez dans **Paramètres Android > Apps > MirrorScreen Pro**
+2. Accordez toutes les permissions demandées
+3. Relancez l'application
+
+## 🔐 Permissions requises
+
+| Permission           | Utilisation                           |
+| -------------------- | ------------------------------------- |
+| INTERNET             | Communication réseau                 |
+| ACCESS_WIFI_STATE    | Détection réseau WiFi               |
+| ACCESS_NETWORK_STATE | État de la connexion                 |
+| FOREGROUND_SERVICE   | Service de mirroring en arrière-plan |
+| WAKE_LOCK            | Éviter la mise en veille             |
+| RECORD_DISPLAY       | Capture de l'écran                   |
+
+## 📱 Compatibilité
+
+### Téléphones
+
+* Android 5.0 (API 21) et supérieur
+* iOS : Non supporté (limitations système)
+
+### Appareils récepteurs
+
+* ✅ Smart TV Samsung (2016+)
+* ✅ Smart TV LG (2017+)
+* ✅ Android TV
+* ✅ Chromecast (toutes versions)
+* ✅ Amazon Fire TV
+* ✅ Apple TV (via AirPlay)
+* ✅ Tout appareil DLNA/UPnP
 
 ## 🎨 Personnalisation
 
@@ -91,117 +204,53 @@ Le code Kotlin dans `MainActivity.kt` utilise l'API MediaProjection pour capture
 
 Modifiez `lib/core/theme/app_theme.dart` pour personnaliser :
 
-* Couleurs primaires et secondaires
-* Police de caractères
-* Styles des composants
+* Couleurs primaires/secondaires
+* Typographie
+* Styles de boutons
+* Animations
 
 ### Qualité par défaut
 
-Dans `lib/presentation/widgets/control_panel.dart` :
+Ajustez dans `lib/presentation/widgets/control_panel.dart` :
 
 ```dart
-double _quality = 70; // Modifiez cette valeur (10-100)
+double _quality = 70; // 10-100
+bool _adaptiveQuality = true;
 ```
 
-### FPS
+## 📝 Notes importantes
 
-Dans `lib/data/repositories/mirroring_repository_impl.dart` :
+1. **Latence** : Une latence de 50-200ms est normale
+2. **Applications protégées** : Netflix, Amazon Prime, etc. peuvent bloquer la capture
+3. **Performances** : Dépendent de votre WiFi et de l'appareil
+4. **Batterie** : Le mirroring consomme beaucoup d'énergie
 
-```dart
-await screenCaptureSource.startCapture(
-  fps: 30, // Modifiez cette valeur
-  quality: quality,
-);
-```
+## 🚧 Limitations connues
 
-## 📱 Utilisation
-
-1. **Lancez l'application** sur votre téléphone
-2. **Connectez-vous au même WiFi** que votre TV/décodeur
-3. **Scannez le QR code** affiché ou entrez l'URL manuellement
-4. **Appuyez sur "Démarrer"** pour commencer le mirroring
-5. **Consultez les statistiques** en temps réel
-
-## 🔌 Côté Récepteur (TV/Décodeur)
-
-Vous devez créer une application récepteur qui :
-
-1. Se connecte au WebSocket à l'adresse affichée
-2. Reçoit les frames JPEG via WebSocket
-3. Les affiche à l'écran
-
-Exemple en HTML/JavaScript :
-
-```javascript
-const ws = new WebSocket('ws://[IP]:8080');
-ws.binaryType = 'arraybuffer';
-
-ws.onmessage = (event) => {
-  const blob = new Blob([event.data], { type: 'image/jpeg' });
-  const url = URL.createObjectURL(blob);
-  document.getElementById('screen').src = url;
-};
-```
-
-## 🛠️ Dépendances principales
-
-* `flutter_bloc` : Gestion d'état
-* `get_it` : Injection de dépendances
-* `web_socket_channel` : Communication WebSocket
-* `network_info_plus` : Informations réseau
-* `qr_flutter` : Génération QR codes
-* `google_fonts` : Polices personnalisées
-* `flutter_animate` : Animations
-
-## 📝 Bonnes pratiques implémentées
-
-✅ **Separation of Concerns** : Couches Domain/Data/Presentation distinctes
-
-✅ **Dependency Injection** : via GetIt
-
-✅ **Repository Pattern** : Abstraction des sources de données
-
-✅ **BLoC Pattern** : Gestion d'état prévisible
-
-✅ **Use Cases** : Logique métier isolée
-
-✅ **Error Handling** : Gestion complète des erreurs
-
-✅ **Stream Management** : Gestion propre des flux de données
-
-✅ **Responsive Design** : Interface adaptative
-
-✅ **Clean Code** : Code lisible et maintenable
-
-## 🐛 Résolution de problèmes
-
-### L'écran ne se capture pas
-
-* Vérifiez que les permissions sont accordées
-* Redémarrez l'application
-* Vérifiez la version Android (5.0+ requis)
-
-### Connexion impossible
-
-* Vérifiez que le téléphone et la TV sont sur le même réseau WiFi
-* Désactivez les pare-feu
-* Vérifiez que le port 8080 n'est pas bloqué
-
-### Performances faibles
-
-* Réduisez la qualité dans les paramètres
-* Fermez les applications en arrière-plan
-* Vérifiez la qualité de votre connexion WiFi
+* La capture d'écran ne fonctionne pas avec du contenu DRM protégé
+* Certaines applications bancaires bloquent la capture
+* Le son n'est pas transmis (limitation Android)
 
 ## 📄 Licence
 
-MIT License - Voir le fichier LICENSE pour plus de détails
+Ce projet est sous licence MIT.
 
-## 👥 Contribution
+## 👥 Support
 
-Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou une pull request.
+Pour tout problème ou question :
 
-## 🙏 Remerciements
+1. Consultez la section Dépannage
+2. Vérifiez les Issues GitHub
+3. Créez une nouvelle Issue avec les détails
 
-* Flutter team pour l'excellent framework
-* La communauté open source pour les packages utilisés
+## 🔄 Mises à jour futures
+
+* [ ] Support audio via Bluetooth
+* [ ] Enregistrement des sessions
+* [ ] Support multi-appareils simultanés
+* [ ] Mode picture-in-picture
+* [ ] Contrôle à distance du téléphone
+
+---
+
+**Développé avec ❤️ en Flutter**

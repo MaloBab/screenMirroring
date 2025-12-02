@@ -33,7 +33,7 @@ class _AnimatedBackgroundState extends State<AnimatedBackground>
     return Stack(
       children: [
         Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
@@ -71,7 +71,7 @@ class BackgroundPainter extends CustomPainter {
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 100);
 
     // Cercle 1
-    paint.color = AppTheme.primaryColor.withOpacity(0.1);
+    paint.color = AppTheme.primaryColor.withAlpha(10);
     final offset1 = Offset(
       size.width * 0.2 + sin(animationValue * 2 * pi) * 50,
       size.height * 0.3 + cos(animationValue * 2 * pi) * 50,
@@ -79,7 +79,7 @@ class BackgroundPainter extends CustomPainter {
     canvas.drawCircle(offset1, 150, paint);
 
     // Cercle 2
-    paint.color = AppTheme.secondaryColor.withOpacity(0.08);
+    paint.color = AppTheme.secondaryColor.withAlpha(8);
     final offset2 = Offset(
       size.width * 0.8 + cos(animationValue * 2 * pi) * 30,
       size.height * 0.6 + sin(animationValue * 2 * pi) * 30,
@@ -87,7 +87,7 @@ class BackgroundPainter extends CustomPainter {
     canvas.drawCircle(offset2, 120, paint);
 
     // Cercle 3
-    paint.color = AppTheme.primaryColor.withOpacity(0.06);
+    paint.color = AppTheme.primaryColor.withAlpha(6);
     final offset3 = Offset(
       size.width * 0.5 + sin(animationValue * 2 * pi + pi) * 40,
       size.height * 0.8 + cos(animationValue * 2 * pi + pi) * 40,

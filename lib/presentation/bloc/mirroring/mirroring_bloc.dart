@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
-import '../../../../domain/entities/connection_info.dart';
-import '../../../../domain/usecases/start_mirroring.dart' as start_mirroring;
-import '../../../domain/usecases/stop_mirroring.dart' as stop_mirroring;
+import '../../../domain/entities/discovered_device.dart';
+import '../../../core/services/mirroring_service.dart';
 
 // Events
 abstract class MirroringEvent extends Equatable {
@@ -12,16 +11,18 @@ abstract class MirroringEvent extends Equatable {
 }
 
 class StartMirroringEvent extends MirroringEvent {
-  final String receiverAddress;
+  final DiscoveredDevice device;
   final int quality;
+  final bool adaptiveQuality;
 
   StartMirroringEvent({
-    required this.receiverAddress,
+    required this.device,
     this.quality = 70,
+    this.adaptiveQuality = true,
   });
 
   @override
-  List<Object?> get props => [receiverAddress, quality];
+  List<Object?> get props => [device, quality, adaptiveQuality];
 }
 
 class StopMirroringEvent extends MirroringEvent {}
@@ -47,15 +48,15 @@ class MirroringLoading extends MirroringState {}
 
 class MirroringActive extends MirroringState {
   final MirroringStats stats;
-  final String receiverAddress;
+  final DiscoveredDevice device;
 
   MirroringActive({
     required this.stats,
-    required this.receiverAddress,
+    required this.device,
   });
 
   @override
-  List<Object?> get props => [stats, receiverAddress];
+  List<Object?> get props => [stats, device];
 }
 
 class MirroringStopped extends MirroringState {}
@@ -71,15 +72,10 @@ class MirroringError extends MirroringState {
 
 // Bloc
 class MirroringBloc extends Bloc<MirroringEvent, MirroringState> {
-  final start_mirroring.StartMirroring startMirroring;
-  final stop_mirroring.StopMirroring stopMirroring;
-  
+  final MirroringService _mirroringService;
   StreamSubscription? _statsSubscription;
 
-  MirroringBloc({
-    required this.startMirroring,
-    required this.stopMirroring,
-  }) : super(MirroringInitial()) {
+  MirroringBloc(this._mirroringService) : super(MirroringInitial()) {
     on<StartMirroringEvent>(_onStartMirroring);
     on<StopMirroringEvent>(_onStopMirroring);
     on<UpdateStatsEvent>(_onUpdateStats);
@@ -91,44 +87,50 @@ class MirroringBloc extends Bloc<MirroringEvent, MirroringState> {
   ) async {
     emit(MirroringLoading());
     
-    final result = await startMirroring(
-      receiverAddress: event.receiverAddress,
-      quality: event.quality,
-    );
-    
-    result.fold(
-      (failure) => emit(MirroringError(failure.message)),
-      (statsStream) {
-        _statsSubscription = statsStream.listen((stats) {
-          add(UpdateStatsEvent(stats));
-        });
-        
-        emit(MirroringActive(
-          stats: const MirroringStats(
-            framesPerSecond: 0,
-            bitrate: 0,
-            duration: Duration.zero,
-            totalFrames: 0,
-          ),
-          receiverAddress: event.receiverAddress,
-        ));
-      },
-    );
+    try {
+      // Démarre le service de mirroring
+      await _mirroringService.startMirroring(
+        device: event.device,
+        quality: event.quality,
+      );
+      
+      // Écoute les statistiques
+      _statsSubscription = _mirroringService.statsStream.listen((stats) {
+        add(UpdateStatsEvent(stats));
+      });
+      
+      // Émet l'état initial actif
+      emit(MirroringActive(
+        stats: const MirroringStats(
+          framesPerSecond: 0,
+          bitrate: 0,
+          duration: Duration.zero,
+          totalFrames: 0,
+          droppedFrames: 0,
+          averageLatency: 0,
+          resolution: '0x0',
+        ),
+        device: event.device,
+      ));
+    } catch (e) {
+      emit(MirroringError('Erreur lors du démarrage: $e'));
+    }
   }
 
   Future<void> _onStopMirroring(
     StopMirroringEvent event,
     Emitter<MirroringState> emit,
   ) async {
-    await _statsSubscription?.cancel();
-    _statsSubscription = null;
-    
-    final result = await stopMirroring();
-    
-    result.fold(
-      (failure) => emit(MirroringError(failure.message)),
-      (_) => emit(MirroringStopped()),
-    );
+    try {
+      await _statsSubscription?.cancel();
+      _statsSubscription = null;
+      
+      await _mirroringService.stopMirroring();
+      
+      emit(MirroringStopped());
+    } catch (e) {
+      emit(MirroringError('Erreur lors de l\'arrêt: $e'));
+    }
   }
 
   void _onUpdateStats(
@@ -139,7 +141,7 @@ class MirroringBloc extends Bloc<MirroringEvent, MirroringState> {
       final currentState = state as MirroringActive;
       emit(MirroringActive(
         stats: event.stats,
-        receiverAddress: currentState.receiverAddress,
+        device: currentState.device,
       ));
     }
   }
@@ -147,6 +149,7 @@ class MirroringBloc extends Bloc<MirroringEvent, MirroringState> {
   @override
   Future<void> close() {
     _statsSubscription?.cancel();
+    _mirroringService.dispose();
     return super.close();
   }
 }

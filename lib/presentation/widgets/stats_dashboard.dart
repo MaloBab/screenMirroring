@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../domain/entities/connection_info.dart';
+import '../../core/services/mirroring_service.dart';
 import '../../core/theme/app_theme.dart';
 
 class StatsDashboard extends StatelessWidget {
@@ -23,21 +23,36 @@ class StatsDashboard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppTheme.successColor.withOpacity(0.1),
+                    color: AppTheme.successColor.withAlpha(10),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(
+                  child: const Icon(
                     Icons.analytics_outlined,
                     color: AppTheme.successColor,
                     size: 24,
                   ),
                 ),
                 const SizedBox(width: 16),
-                Text(
-                  'Statistiques en direct',
-                  style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                        fontSize: 18,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Statistiques en direct',
+                        style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                              fontSize: 18,
+                            ),
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Qualité: ${stats.quality.toStringAsFixed(1)}%',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: _getQualityColor(stats.quality),
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -80,6 +95,8 @@ class StatsDashboard extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+            _buildAdditionalStats(context),
           ],
         ),
       ),
@@ -100,13 +117,13 @@ class StatsDashboard extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            color.withOpacity(0.1),
-            color.withOpacity(0.05),
+            color.withAlpha(10),
+            color.withAlpha(5),
           ],
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: color.withOpacity(0.3),
+          color: color.withAlpha(30),
           width: 1,
         ),
       ),
@@ -121,7 +138,7 @@ class StatsDashboard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
+                  color: color.withAlpha(20),
                   shape: BoxShape.circle,
                 ),
                 child: Icon(Icons.trending_up, color: color, size: 16),
@@ -152,6 +169,75 @@ class StatsDashboard extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildAdditionalStats(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceColor.withAlpha(50),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildMiniStat(
+            context,
+            icon: Icons.aspect_ratio,
+            label: 'Résolution',
+            value: stats.resolution,
+          ),
+          Container(width: 1, height: 40, color: Colors.white24),
+          _buildMiniStat(
+            context,
+            icon: Icons.network_check,
+            label: 'Latence',
+            value: '${stats.averageLatency}ms',
+          ),
+          Container(width: 1, height: 40, color: Colors.white24),
+          _buildMiniStat(
+            context,
+            icon: Icons.warning_amber_outlined,
+            label: 'Perdues',
+            value: '${stats.droppedFrames}',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniStat(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Column(
+      children: [
+        Icon(icon, size: 20, color: AppTheme.secondaryColor),
+        const SizedBox(height: 6),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+        ),
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                fontSize: 10,
+                color: Colors.white54,
+              ),
+        ),
+      ],
+    );
+  }
+
+  Color _getQualityColor(double quality) {
+    if (quality >= 80) return AppTheme.successColor;
+    if (quality >= 60) return Colors.orange;
+    return AppTheme.errorColor;
   }
 
   String _formatDuration(Duration duration) {

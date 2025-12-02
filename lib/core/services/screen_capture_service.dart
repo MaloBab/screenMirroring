@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 
@@ -25,14 +24,9 @@ class ScreenCaptureService {
     final interval = Duration(milliseconds: (1000 / fps).round());
     
     _captureTimer = Timer.periodic(interval, (timer) async {
-      try {
-        final frameData = await _captureFrame(quality);
-        if (frameData != null && !_frameController.isClosed) {
-          _frameController.add(frameData);
-        }
-      } catch (e) {
-        // Log error but continue capturing
-        print('Capture frame error: $e');
+      final frameData = await _captureFrame(quality);
+      if (frameData != null && !_frameController.isClosed) {
+        _frameController.add(frameData);
       }
     });
   }
@@ -53,7 +47,6 @@ class ScreenCaptureService {
       final compressed = img.encodeJpg(image, quality: quality);
       return Uint8List.fromList(compressed);
     } catch (e) {
-      print('Error capturing frame: $e');
       return null;
     }
   }

@@ -4,7 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'core/di/injection_container.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/bloc/mirroring/mirroring_bloc.dart';
-import 'presentation/bloc/connection/connection_bloc.dart';
+import 'presentation/bloc/device_discovery/device_discovery_bloc.dart';
 import 'presentation/pages/home_page.dart';
 
 void main() async {
@@ -40,7 +40,7 @@ class MirrorScreenApp extends StatelessWidget {
           create: (_) => getIt<MirroringBloc>(),
         ),
         BlocProvider(
-          create: (_) => getIt<ConnectionBloc>()..add(InitializeConnection()),
+          create: (_) => getIt<DeviceDiscoveryBloc>(),
         ),
       ],
       child: MaterialApp(
