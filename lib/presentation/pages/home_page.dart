@@ -107,19 +107,23 @@ class _HomePageState extends State<HomePage> {
             Icon(
               Icons.cast_connected,
               color: Theme.of(context).primaryColor,
-              size: 28,
+              size: 24, // Reduced from 28
             ),
-            const SizedBox(width: 12),
-            Text(
-              'MirrorScreen Pro',
-              style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
+            const SizedBox(width: 8), // Reduced from 12
+            Flexible( // Wrapped Text in Flexible
+              child: Text(
+                'MirrorScreen Pro',
+                style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                      fontSize: 18, // Reduced from 22
+                      fontWeight: FontWeight.bold,
+                    ),
+                overflow: TextOverflow.ellipsis, // Added overflow handling
+              ),
             ),
           ],
         ),
         centerTitle: false,
+        titlePadding: const EdgeInsets.only(left: 16, bottom: 16), // Added padding
       ),
       actions: [
         IconButton(
