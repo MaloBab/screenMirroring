@@ -69,7 +69,7 @@ class MainActivity: FlutterActivity() {
     }
 
     private fun requestScreenCapturePermission() {
-        // Démarrer le service foreground AVANT de demander la permission
+        // IMPORTANT: Démarrer le service AVANT de demander la permission
         val serviceIntent = Intent(this, ScreenMirrorService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)
@@ -77,9 +77,12 @@ class MainActivity: FlutterActivity() {
             startService(serviceIntent)
         }
         
-        // Maintenant demander la permission de projection
-        val captureIntent = mediaProjectionManager?.createScreenCaptureIntent()
-        startActivityForResult(captureIntent, REQUEST_CODE)
+        // Délai plus long pour Android 14+ pour s'assurer que le service est bien en foreground
+        val delay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) 500L else 200L
+        Handler(Looper.getMainLooper()).postDelayed({
+            val captureIntent = mediaProjectionManager?.createScreenCaptureIntent()
+            startActivityForResult(captureIntent, REQUEST_CODE)
+        }, delay)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -88,9 +91,13 @@ class MainActivity: FlutterActivity() {
             if (resultCode == Activity.RESULT_OK && data != null) {
                 this.resultCode = resultCode
                 this.resultData = data
-                setupMediaProjection()
+                // Attendre que le service soit bien en foreground (plus long pour Android 14+)
+                val delay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) 500L else 300L
+                Handler(Looper.getMainLooper()).postDelayed({
+                    setupMediaProjection()
+                }, delay)
             } else {
-                // Si permission refusée, arrêter le service
+                // Permission refusée, arrêter le service
                 val serviceIntent = Intent(this, ScreenMirrorService::class.java)
                 stopService(serviceIntent)
             }
@@ -98,36 +105,75 @@ class MainActivity: FlutterActivity() {
     }
 
     private fun setupMediaProjection() {
-        mediaProjection = mediaProjectionManager?.getMediaProjection(
-            resultCode,
-            resultData!!
-        )
-        
-        val metrics = DisplayMetrics()
-        val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-        windowManager.defaultDisplay.getMetrics(metrics)
-        
-        val width = metrics.widthPixels
-        val height = metrics.heightPixels
-        val density = metrics.densityDpi
-        
-        imageReader = ImageReader.newInstance(
-            width,
-            height,
-            PixelFormat.RGBA_8888,
-            2
-        )
-        
-        virtualDisplay = mediaProjection?.createVirtualDisplay(
-            "ScreenMirror",
-            width,
-            height,
-            density,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-            imageReader?.surface,
-            null,
-            null
-        )
+        try {
+            mediaProjection = mediaProjectionManager?.getMediaProjection(
+                resultCode,
+                resultData!!
+            )
+            
+            // IMPORTANT: Enregistrer le callback AVANT de créer le VirtualDisplay (Android 14+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                mediaProjection?.registerCallback(object : MediaProjection.Callback() {
+                    override fun onStop() {
+                        super.onStop()
+                        cleanupMediaProjection()
+                    }
+                    
+                    override fun onCapturedContentResize(width: Int, height: Int) {
+                        super.onCapturedContentResize(width, height)
+                        // Optionnel: gérer le redimensionnement
+                    }
+                    
+                    override fun onCapturedContentVisibilityChanged(isVisible: Boolean) {
+                        super.onCapturedContentVisibilityChanged(isVisible)
+                        // Optionnel: gérer la visibilité
+                    }
+                }, Handler(Looper.getMainLooper()))
+            }
+            
+            val metrics = DisplayMetrics()
+            val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                windowManager.defaultDisplay?.getMetrics(metrics)
+            } else {
+                @Suppress("DEPRECATION")
+                windowManager.defaultDisplay.getMetrics(metrics)
+            }
+            
+            val width = metrics.widthPixels
+            val height = metrics.heightPixels
+            val density = metrics.densityDpi
+            
+            imageReader = ImageReader.newInstance(
+                width,
+                height,
+                PixelFormat.RGBA_8888,
+                2
+            )
+            
+            virtualDisplay = mediaProjection?.createVirtualDisplay(
+                "ScreenMirror",
+                width,
+                height,
+                density,
+                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                imageReader?.surface,
+                null,
+                null
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            // Arrêter le service en cas d'erreur
+            val serviceIntent = Intent(this, ScreenMirrorService::class.java)
+            stopService(serviceIntent)
+        }
+    }
+    
+    private fun cleanupMediaProjection() {
+        virtualDisplay?.release()
+        virtualDisplay = null
+        imageReader?.close()
+        imageReader = null
     }
 
     private fun startScreenCapture() {
@@ -137,8 +183,7 @@ class MainActivity: FlutterActivity() {
     }
 
     private fun stopScreenCapture() {
-        virtualDisplay?.release()
-        imageReader?.close()
+        cleanupMediaProjection()
         mediaProjection?.stop()
         mediaProjection = null
         

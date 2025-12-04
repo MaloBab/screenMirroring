@@ -11,8 +11,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     
     <!-- Permission pour capturer l'écran (Android 5.0+) -->
-    <uses-permission android:name="android.permission.RECORD_DISPLAY"/>
-
+    <!-- Note: Cette permission n'existe pas vraiment, c'est géré par MediaProjection -->
     
     <application
         android:label="MirrorScreen Pro"
