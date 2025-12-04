@@ -10,6 +10,7 @@ import android.hardware.display.VirtualDisplay
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -68,6 +69,15 @@ class MainActivity: FlutterActivity() {
     }
 
     private fun requestScreenCapturePermission() {
+        // Démarrer le service foreground AVANT de demander la permission
+        val serviceIntent = Intent(this, ScreenMirrorService::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(serviceIntent)
+        } else {
+            startService(serviceIntent)
+        }
+        
+        // Maintenant demander la permission de projection
         val captureIntent = mediaProjectionManager?.createScreenCaptureIntent()
         startActivityForResult(captureIntent, REQUEST_CODE)
     }
@@ -79,6 +89,10 @@ class MainActivity: FlutterActivity() {
                 this.resultCode = resultCode
                 this.resultData = data
                 setupMediaProjection()
+            } else {
+                // Si permission refusée, arrêter le service
+                val serviceIntent = Intent(this, ScreenMirrorService::class.java)
+                stopService(serviceIntent)
             }
         }
     }
@@ -127,6 +141,10 @@ class MainActivity: FlutterActivity() {
         imageReader?.close()
         mediaProjection?.stop()
         mediaProjection = null
+        
+        // Arrêter le service foreground
+        val serviceIntent = Intent(this, ScreenMirrorService::class.java)
+        stopService(serviceIntent)
     }
 
     private fun captureScreenshot(): ByteArray? {
