@@ -15,6 +15,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.util.DisplayMetrics
+import android.util.Log
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -24,13 +25,17 @@ import java.io.ByteArrayOutputStream
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "com.mirrorscreen/capture"
     private val REQUEST_CODE = 1000
+    private val TAG = "MirrorScreen"
     
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
     private var mediaProjectionManager: MediaProjectionManager? = null
-    private var resultCode: Int = 0
-    private var resultData: Intent? = null
+    
+    // IMPORTANT: Ne pas stocker resultCode/resultData pour Android 14+
+    private var pendingResultCode: Int = 0
+    private var pendingResultData: Intent? = null
+    private var isPermissionGranted = false
     
     private lateinit var methodChannel: MethodChannel
 
@@ -52,8 +57,12 @@ class MainActivity: FlutterActivity() {
                     result.success(true)
                 }
                 "startCapture" -> {
-                    startScreenCapture()
-                    result.success(true)
+                    if (isPermissionGranted) {
+                        startScreenCapture()
+                        result.success(true)
+                    } else {
+                        result.error("NO_PERMISSION", "Permission non accordée", null)
+                    }
                 }
                 "stopCapture" -> {
                     stopScreenCapture()
@@ -61,7 +70,11 @@ class MainActivity: FlutterActivity() {
                 }
                 "captureScreen" -> {
                     val screenshot = captureScreenshot()
-                    result.success(screenshot)
+                    if (screenshot != null) {
+                        result.success(screenshot)
+                    } else {
+                        result.error("CAPTURE_FAILED", "Échec de la capture", null)
+                    }
                 }
                 else -> result.notImplemented()
             }
@@ -69,7 +82,9 @@ class MainActivity: FlutterActivity() {
     }
 
     private fun requestScreenCapturePermission() {
-        // IMPORTANT: Démarrer le service AVANT de demander la permission
+        Log.d(TAG, "Demande de permission de capture d'écran")
+        
+        // Démarrer le service AVANT de demander la permission
         val serviceIntent = Intent(this, ScreenMirrorService::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             startForegroundService(serviceIntent)
@@ -77,73 +92,90 @@ class MainActivity: FlutterActivity() {
             startService(serviceIntent)
         }
         
-        // Délai plus long pour Android 14+ pour s'assurer que le service est bien en foreground
-        val delay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) 500L else 200L
+        // Délai pour s'assurer que le service est en foreground
+        val delay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) 800L else 300L
         Handler(Looper.getMainLooper()).postDelayed({
-            val captureIntent = mediaProjectionManager?.createScreenCaptureIntent()
-            startActivityForResult(captureIntent, REQUEST_CODE)
+            try {
+                val captureIntent = mediaProjectionManager?.createScreenCaptureIntent()
+                if (captureIntent != null) {
+                    startActivityForResult(captureIntent, REQUEST_CODE)
+                } else {
+                    Log.e(TAG, "Impossible de créer l'intent de capture")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erreur lors de la demande de permission", e)
+            }
         }, delay)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        
         if (requestCode == REQUEST_CODE) {
             if (resultCode == Activity.RESULT_OK && data != null) {
-                this.resultCode = resultCode
-                this.resultData = data
-                // Attendre que le service soit bien en foreground (plus long pour Android 14+)
-                val delay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) 500L else 300L
+                Log.d(TAG, "Permission accordée")
+                
+                // Stocker temporairement pour une SEULE utilisation
+                pendingResultCode = resultCode
+                pendingResultData = data
+                isPermissionGranted = true
+                
+                // Attendre que le service soit stable
+                val delay = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) 1000L else 500L
                 Handler(Looper.getMainLooper()).postDelayed({
                     setupMediaProjection()
                 }, delay)
             } else {
-                // Permission refusée, arrêter le service
-                val serviceIntent = Intent(this, ScreenMirrorService::class.java)
-                stopService(serviceIntent)
+                Log.e(TAG, "Permission refusée")
+                isPermissionGranted = false
+                stopService(Intent(this, ScreenMirrorService::class.java))
             }
         }
     }
 
     private fun setupMediaProjection() {
+        if (!isPermissionGranted || pendingResultData == null) {
+            Log.e(TAG, "Pas de permission valide")
+            return
+        }
+        
         try {
+            Log.d(TAG, "Configuration de MediaProjection")
+            
+            // Créer MediaProjection une seule fois
             mediaProjection = mediaProjectionManager?.getMediaProjection(
-                resultCode,
-                resultData!!
+                pendingResultCode,
+                pendingResultData!!
             )
             
-            // IMPORTANT: Enregistrer le callback AVANT de créer le VirtualDisplay (Android 14+)
+            // IMPORTANT: NE PLUS utiliser pendingResultData après cette création
+            pendingResultData = null
+            
+            if (mediaProjection == null) {
+                Log.e(TAG, "MediaProjection est null")
+                return
+            }
+            
+            // Enregistrer le callback AVANT de créer le VirtualDisplay (Android 14+)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                 mediaProjection?.registerCallback(object : MediaProjection.Callback() {
                     override fun onStop() {
                         super.onStop()
+                        Log.d(TAG, "MediaProjection arrêtée")
                         cleanupMediaProjection()
-                    }
-                    
-                    override fun onCapturedContentResize(width: Int, height: Int) {
-                        super.onCapturedContentResize(width, height)
-                        // Optionnel: gérer le redimensionnement
-                    }
-                    
-                    override fun onCapturedContentVisibilityChanged(isVisible: Boolean) {
-                        super.onCapturedContentVisibilityChanged(isVisible)
-                        // Optionnel: gérer la visibilité
                     }
                 }, Handler(Looper.getMainLooper()))
             }
             
-            val metrics = DisplayMetrics()
-            val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                windowManager.defaultDisplay?.getMetrics(metrics)
-            } else {
-                @Suppress("DEPRECATION")
-                windowManager.defaultDisplay.getMetrics(metrics)
-            }
-            
+            // Obtenir les métriques de l'écran
+            val metrics = getScreenMetrics()
             val width = metrics.widthPixels
             val height = metrics.heightPixels
             val density = metrics.densityDpi
             
+            Log.d(TAG, "Résolution: ${width}x${height}, densité: $density")
+            
+            // Créer ImageReader avec un format compatible
             imageReader = ImageReader.newInstance(
                 width,
                 height,
@@ -151,6 +183,7 @@ class MainActivity: FlutterActivity() {
                 2
             )
             
+            // Créer VirtualDisplay
             virtualDisplay = mediaProjection?.createVirtualDisplay(
                 "ScreenMirror",
                 width,
@@ -161,15 +194,43 @@ class MainActivity: FlutterActivity() {
                 null,
                 null
             )
+            
+            if (virtualDisplay != null) {
+                Log.d(TAG, "VirtualDisplay créé avec succès")
+            } else {
+                Log.e(TAG, "Échec de création du VirtualDisplay")
+            }
+            
+        } catch (e: SecurityException) {
+            Log.e(TAG, "SecurityException lors de la création de MediaProjection", e)
+            // Cette erreur indique une réutilisation de resultData
+            isPermissionGranted = false
+            stopService(Intent(this, ScreenMirrorService::class.java))
         } catch (e: Exception) {
-            e.printStackTrace()
-            // Arrêter le service en cas d'erreur
-            val serviceIntent = Intent(this, ScreenMirrorService::class.java)
-            stopService(serviceIntent)
+            Log.e(TAG, "Erreur lors de la configuration", e)
+            stopService(Intent(this, ScreenMirrorService::class.java))
         }
     }
     
+    private fun getScreenMetrics(): DisplayMetrics {
+        val metrics = DisplayMetrics()
+        val windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val bounds = windowManager.currentWindowMetrics.bounds
+            metrics.widthPixels = bounds.width()
+            metrics.heightPixels = bounds.height()
+            metrics.densityDpi = resources.displayMetrics.densityDpi
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.getMetrics(metrics)
+        }
+        
+        return metrics
+    }
+    
     private fun cleanupMediaProjection() {
+        Log.d(TAG, "Nettoyage des ressources")
         virtualDisplay?.release()
         virtualDisplay = null
         imageReader?.close()
@@ -178,18 +239,21 @@ class MainActivity: FlutterActivity() {
 
     private fun startScreenCapture() {
         if (mediaProjection == null) {
+            Log.w(TAG, "MediaProjection null, nouvelle demande de permission")
             requestScreenCapturePermission()
+        } else {
+            Log.d(TAG, "Capture déjà active")
         }
     }
 
     private fun stopScreenCapture() {
+        Log.d(TAG, "Arrêt de la capture")
         cleanupMediaProjection()
         mediaProjection?.stop()
         mediaProjection = null
+        isPermissionGranted = false
         
-        // Arrêter le service foreground
-        val serviceIntent = Intent(this, ScreenMirrorService::class.java)
-        stopService(serviceIntent)
+        stopService(Intent(this, ScreenMirrorService::class.java))
     }
 
     private fun captureScreenshot(): ByteArray? {
@@ -197,6 +261,12 @@ class MainActivity: FlutterActivity() {
             val image = imageReader?.acquireLatestImage()
             if (image != null) {
                 val planes = image.planes
+                if (planes.isEmpty()) {
+                    Log.e(TAG, "Pas de planes disponibles")
+                    image.close()
+                    return null
+                }
+                
                 val buffer = planes[0].buffer
                 val pixelStride = planes[0].pixelStride
                 val rowStride = planes[0].rowStride
@@ -210,23 +280,33 @@ class MainActivity: FlutterActivity() {
                 bitmap.copyPixelsFromBuffer(buffer)
                 image.close()
                 
-                // Convertir en ByteArray
+                // Convertir en ByteArray avec compression JPEG
                 val stream = ByteArrayOutputStream()
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+                val compressed = bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream)
+                
+                if (!compressed) {
+                    Log.e(TAG, "Échec de compression de l'image")
+                    bitmap.recycle()
+                    return null
+                }
+                
                 val byteArray = stream.toByteArray()
                 bitmap.recycle()
                 
+                Log.d(TAG, "Screenshot capturé: ${byteArray.size} bytes")
                 byteArray
             } else {
+                Log.w(TAG, "Aucune image disponible")
                 null
             }
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Erreur lors de la capture", e)
             null
         }
     }
 
     override fun onDestroy() {
+        Log.d(TAG, "onDestroy appelé")
         stopScreenCapture()
         super.onDestroy()
     }

@@ -1,8 +1,11 @@
+// lib/presentation/widgets/control_panel.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/discovered_device.dart';
 import '../bloc/mirroring/mirroring_bloc.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/permission_service.dart';
+import 'permission_dialog.dart';
 
 class ControlPanel extends StatefulWidget {
   final MirroringState mirroringState;
@@ -22,6 +25,27 @@ class _ControlPanelState extends State<ControlPanel> {
   double _quality = 70;
   bool _showSettings = false;
   bool _adaptiveQuality = true;
+  bool _permissionsGranted = false;
+  bool _checkingPermissions = false;
+  
+  final _permissionService = PermissionService();
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPermissions();
+  }
+
+  Future<void> _checkPermissions() async {
+    setState(() => _checkingPermissions = true);
+    
+    final result = await _permissionService.checkAllPermissions();
+    
+    setState(() {
+      _permissionsGranted = result.isGranted;
+      _checkingPermissions = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,11 +76,18 @@ class _ControlPanelState extends State<ControlPanel> {
             ),
             const SizedBox(height: 24),
             
+            // Afficher l'état des permissions si non accordées
+            if (!_permissionsGranted && !isActive)
+              _buildPermissionWarning(context),
+            
+            if (!_permissionsGranted && !isActive)
+              const SizedBox(height: 16),
+            
             // Bouton principal
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               child: ElevatedButton(
-                onPressed: (isLoading || !hasDevice)
+                onPressed: (isLoading || !hasDevice || _checkingPermissions)
                     ? null
                     : () => _toggleMirroring(context, isActive),
                 style: ElevatedButton.styleFrom(
@@ -67,48 +98,15 @@ class _ControlPanelState extends State<ControlPanel> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                 ),
-                child: isLoading
-                    ? const SizedBox(
-                        height: 24,
-                        width: 24,
-                        child: CircularProgressIndicator(
-                          color: Colors.white,
-                          strokeWidth: 2,
-                        ),
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            isActive ? Icons.stop : Icons.play_arrow,
-                            size: 32,
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            !hasDevice
-                                ? 'Sélectionnez un appareil'
-                                : (isActive
-                                    ? 'Arrêter le mirroring'
-                                    : 'Démarrer le mirroring'),
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
+                child: _buildButtonContent(isLoading, isActive, hasDevice),
               ),
             ),
             
             if (hasDevice && !isActive) ...[
               const SizedBox(height: 16),
-              
-              // Recommandations basées sur l'appareil
               _buildDeviceRecommendations(context),
-              
               const SizedBox(height: 16),
               
-              // Bouton des paramètres
               TextButton.icon(
                 onPressed: () {
                   setState(() {
@@ -125,7 +123,6 @@ class _ControlPanelState extends State<ControlPanel> {
                 ),
               ),
               
-              // Paramètres
               AnimatedCrossFade(
                 firstChild: const SizedBox.shrink(),
                 secondChild: _buildSettings(context),
@@ -137,6 +134,107 @@ class _ControlPanelState extends State<ControlPanel> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildButtonContent(bool isLoading, bool isActive, bool hasDevice) {
+    if (_checkingPermissions) {
+      return const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          SizedBox(
+            height: 24,
+            width: 24,
+            child: CircularProgressIndicator(
+              color: Colors.white,
+              strokeWidth: 2,
+            ),
+          ),
+          SizedBox(width: 12),
+          Text(
+            'Vérification...',
+            style: TextStyle(fontSize: 16),
+          ),
+        ],
+      );
+    }
+    
+    if (isLoading) {
+      return const SizedBox(
+        height: 24,
+        width: 24,
+        child: CircularProgressIndicator(
+          color: Colors.white,
+          strokeWidth: 2,
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          isActive ? Icons.stop : Icons.play_arrow,
+          size: 32,
+        ),
+        const SizedBox(width: 12),
+        Text(
+          !hasDevice
+              ? 'Sélectionnez un appareil'
+              : (isActive
+                  ? 'Arrêter le mirroring'
+                  : 'Démarrer le mirroring'),
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPermissionWarning(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.orange.withAlpha(10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.orange.withAlpha(30),
+        ),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.warning_amber_rounded,
+            color: Colors.orange,
+            size: 24,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Autorisations requises',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Cliquez sur "Démarrer" pour autoriser',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontSize: 12,
+                        color: Colors.orange.shade300,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -206,7 +304,6 @@ class _ControlPanelState extends State<ControlPanel> {
       children: [
         const Divider(height: 32),
         
-        // Qualité adaptative
         SwitchListTile(
           title: Text(
             'Qualité adaptative',
@@ -233,7 +330,6 @@ class _ControlPanelState extends State<ControlPanel> {
         
         const SizedBox(height: 16),
         
-        // Contrôle manuel de la qualité
         AnimatedOpacity(
           opacity: _adaptiveQuality ? 0.5 : 1.0,
           duration: const Duration(milliseconds: 200),
@@ -286,8 +382,6 @@ class _ControlPanelState extends State<ControlPanel> {
         ),
         
         const SizedBox(height: 16),
-        
-        // Informations de performance
         _buildPerformanceInfo(context),
       ],
     );
@@ -409,28 +503,100 @@ class _ControlPanelState extends State<ControlPanel> {
     return (pixels * fps * qualityFactor * 0.3) / 1000000;
   }
 
-  void _toggleMirroring(BuildContext context, bool isActive) {
+  Future<void> _toggleMirroring(BuildContext context, bool isActive) async {
     if (isActive) {
       context.read<MirroringBloc>().add(StopMirroringEvent());
-    } else {
-      if (widget.selectedDevice == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Veuillez sélectionner un appareil'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
+      return;
+    }
+
+    if (widget.selectedDevice == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Veuillez sélectionner un appareil'),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    // Vérifier et demander les permissions avant de démarrer
+    if (!_permissionsGranted) {
+      final shouldRequest = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => PermissionDialog(
+          onAccept: () => Navigator.of(context).pop(true),
+          onDeny: () => Navigator.of(context).pop(false),
+        ),
+      );
+
+      if (shouldRequest != true) return;
+
+      // Demander les permissions de base d'abord
+      final basePermResult = await _permissionService.requestAllPermissions();
       
-      context.read<MirroringBloc>().add(
-            StartMirroringEvent(
-              device: widget.selectedDevice!,
-              quality: _quality.round(),
-              adaptiveQuality: _adaptiveQuality,
+      if (!mounted) return;
+      
+      if (!basePermResult.isGranted) {
+        if (basePermResult.isPermanentlyDenied) {
+          _showPermissionDeniedDialog(context);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(basePermResult.message ?? 'Permissions refusées'),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
             ),
           );
+        }
+        return;
+      }
+
+      setState(() => _permissionsGranted = true);
     }
+
+    if (!mounted) return;
+    
+    // Maintenant demander la permission de capture d'écran via le code natif
+    // Cette permission sera demandée automatiquement lors du démarrage
+    context.read<MirroringBloc>().add(
+          StartMirroringEvent(
+            device: widget.selectedDevice!,
+            quality: _quality.round(),
+            adaptiveQuality: _adaptiveQuality,
+          ),
+        );
+  }
+
+  void _showPermissionDeniedDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppTheme.surfaceColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        title: const Text('Permissions requises'),
+        content: const Text(
+          'Vous avez refusé définitivement les permissions. '
+          'Veuillez les activer manuellement dans les paramètres.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _permissionService.openAppSettings();
+            },
+            child: const Text('Ouvrir paramètres'),
+          ),
+        ],
+      ),
+    );
   }
 }
