@@ -31,7 +31,6 @@ class MirroringService {
     if (_isCapturing) return;
     
     _targetDevice = device;
-    _isCapturing = true;
     _startTime = DateTime.now();
     _frameCount = 0;
     _totalFrames = 0;
@@ -43,32 +42,49 @@ class MirroringService {
     // Calcule la résolution optimale
     final targetResolution = _calculateOptimalResolution(device);
     
-    // Démarre la permission de capture d'écran
-    await platform.invokeMethod('requestPermission');
-    await platform.invokeMethod('startCapture');
-    
-    _captureTimer = Timer.periodic(interval, (timer) async {
-
-      final frameData = await _captureAndProcessFrame(
-        quality: quality,
-        targetWidth: targetResolution.width,
-        targetHeight: targetResolution.height,
-      );
+    try {
+      // ÉTAPE 1: Demander la permission (déclenche la popup Android)
+      print('🔐 Demande de permission MediaProjection...');
+      await platform.invokeMethod('requestPermission');
       
-      if (frameData != null && !_frameController.isClosed) {
-        _frameController.add(frameData);
-        _updateStats();
-      }
-    });
-    
-    // Démarre le timer de statistiques
-    Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!_isCapturing) {
-        timer.cancel();
-      } else {
-        _emitStats();
-      }
-    });
+      // ÉTAPE 2: Attendre que l'utilisateur réponde (délai pour Android 14+)
+      await Future.delayed(const Duration(seconds: 2));
+      
+      // ÉTAPE 3: Démarrer la capture
+      print('🎬 Démarrage de la capture d\'écran...');
+      await platform.invokeMethod('startCapture');
+      
+      _isCapturing = true;
+      
+      // ÉTAPE 4: Démarrer le timer de capture
+      _captureTimer = Timer.periodic(interval, (timer) async {
+        final frameData = await _captureAndProcessFrame(
+          quality: quality,
+          targetWidth: targetResolution.width,
+          targetHeight: targetResolution.height,
+        );
+        
+        if (frameData != null && !_frameController.isClosed) {
+          _frameController.add(frameData);
+          _updateStats();
+        }
+      });
+      
+      // Démarre le timer de statistiques
+      Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!_isCapturing) {
+          timer.cancel();
+        } else {
+          _emitStats();
+        }
+      });
+      
+      print('✅ Mirroring démarré avec succès');
+    } catch (e) {
+      print('❌ Erreur lors du démarrage: $e');
+      _isCapturing = false;
+      rethrow;
+    }
   }
 
   /// Capture et traite une frame
@@ -101,6 +117,7 @@ class MirroringService {
       final encoded = img.encodeJpg(optimized, quality: quality);
       return Uint8List.fromList(encoded);
     } catch (e) {
+      print('⚠️ Erreur capture frame: $e');
       return null;
     }
   }
@@ -214,12 +231,19 @@ class MirroringService {
 
   /// Arrête le mirroring
   Future<void> stopMirroring() async {
+    print('🛑 Arrêt du mirroring...');
+    
     _captureTimer?.cancel();
     _captureTimer = null;
     _isCapturing = false;
     _targetDevice = null;
     
-    await platform.invokeMethod('stopCapture');
+    try {
+      await platform.invokeMethod('stopCapture');
+      print('✅ Mirroring arrêté');
+    } catch (e) {
+      print('⚠️ Erreur lors de l\'arrêt: $e');
+    }
   }
 
   void dispose() {

@@ -1,4 +1,3 @@
-// lib/presentation/widgets/control_panel.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../domain/entities/discovered_device.dart';
@@ -25,27 +24,8 @@ class _ControlPanelState extends State<ControlPanel> {
   double _quality = 70;
   bool _showSettings = false;
   bool _adaptiveQuality = true;
-  bool _permissionsGranted = false;
-  bool _checkingPermissions = false;
   
-  final _permissionService = PermissionService();
-
-  @override
-  void initState() {
-    super.initState();
-    _checkPermissions();
-  }
-
-  Future<void> _checkPermissions() async {
-    setState(() => _checkingPermissions = true);
-    
-    final result = await _permissionService.checkAllPermissions();
-    
-    setState(() {
-      _permissionsGranted = result.isGranted;
-      _checkingPermissions = false;
-    });
-  }
+  final permissionService = PermissionService();
 
   @override
   Widget build(BuildContext context) {
@@ -76,18 +56,44 @@ class _ControlPanelState extends State<ControlPanel> {
             ),
             const SizedBox(height: 24),
             
-            // Afficher l'état des permissions si non accordées
-            if (!_permissionsGranted && !isActive)
-              _buildPermissionWarning(context),
-            
-            if (!_permissionsGranted && !isActive)
-              const SizedBox(height: 16),
+            // Info sur les permissions
+            if (!isActive && hasDevice)
+              Container(
+                padding: const EdgeInsets.all(16),
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryColor.withAlpha(10),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppTheme.primaryColor.withAlpha(30),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.info_outline,
+                      color: AppTheme.primaryColor,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Android affichera une demande d\'autorisation de capture d\'écran',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              fontSize: 12,
+                              color: AppTheme.primaryColor,
+                            ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             
             // Bouton principal
             AnimatedContainer(
               duration: const Duration(milliseconds: 300),
               child: ElevatedButton(
-                onPressed: (isLoading || !hasDevice || _checkingPermissions)
+                onPressed: (isLoading || !hasDevice)
                     ? null
                     : () => _toggleMirroring(context, isActive),
                 style: ElevatedButton.styleFrom(
@@ -139,27 +145,6 @@ class _ControlPanelState extends State<ControlPanel> {
   }
 
   Widget _buildButtonContent(bool isLoading, bool isActive, bool hasDevice) {
-    if (_checkingPermissions) {
-      return const Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(
-            height: 24,
-            width: 24,
-            child: CircularProgressIndicator(
-              color: Colors.white,
-              strokeWidth: 2,
-            ),
-          ),
-          SizedBox(width: 12),
-          Text(
-            'Vérification...',
-            style: TextStyle(fontSize: 16),
-          ),
-        ],
-      );
-    }
-    
     if (isLoading) {
       return const SizedBox(
         height: 24,
@@ -191,51 +176,6 @@ class _ControlPanelState extends State<ControlPanel> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildPermissionWarning(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.orange.withAlpha(10),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.orange.withAlpha(30),
-        ),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.warning_amber_rounded,
-            color: Colors.orange,
-            size: 24,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Autorisations requises',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: Colors.orange,
-                      ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Cliquez sur "Démarrer" pour autoriser',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontSize: 12,
-                        color: Colors.orange.shade300,
-                      ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -521,46 +461,20 @@ class _ControlPanelState extends State<ControlPanel> {
       return;
     }
 
-    // Vérifier et demander les permissions avant de démarrer
-    if (!_permissionsGranted) {
-      final shouldRequest = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => PermissionDialog(
-          onAccept: () => Navigator.of(context).pop(true),
-          onDeny: () => Navigator.of(context).pop(false),
-        ),
-      );
+    // Afficher le dialogue d'information AVANT de démarrer
+    final shouldContinue = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => PermissionDialog(
+        onAccept: () => Navigator.of(context).pop(true),
+        onDeny: () => Navigator.of(context).pop(false),
+      ),
+    );
 
-      if (shouldRequest != true) return;
-
-      // Demander les permissions de base d'abord
-      final basePermResult = await _permissionService.requestAllPermissions();
-      
-      if (!mounted) return;
-      
-      if (!basePermResult.isGranted) {
-        if (basePermResult.isPermanentlyDenied) {
-          _showPermissionDeniedDialog(context);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(basePermResult.message ?? 'Permissions refusées'),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
-        return;
-      }
-
-      setState(() => _permissionsGranted = true);
-    }
-
-    if (!mounted) return;
+    if (shouldContinue != true || !mounted) return;
     
-    // Maintenant demander la permission de capture d'écran via le code natif
-    // Cette permission sera demandée automatiquement lors du démarrage
+    // Démarrer directement le mirroring
+    // La permission Android sera demandée automatiquement par le code natif
     context.read<MirroringBloc>().add(
           StartMirroringEvent(
             device: widget.selectedDevice!,
@@ -568,35 +482,5 @@ class _ControlPanelState extends State<ControlPanel> {
             adaptiveQuality: _adaptiveQuality,
           ),
         );
-  }
-
-  void _showPermissionDeniedDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppTheme.surfaceColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        title: const Text('Permissions requises'),
-        content: const Text(
-          'Vous avez refusé définitivement les permissions. '
-          'Veuillez les activer manuellement dans les paramètres.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _permissionService.openAppSettings();
-            },
-            child: const Text('Ouvrir paramètres'),
-          ),
-        ],
-      ),
-    );
   }
 }

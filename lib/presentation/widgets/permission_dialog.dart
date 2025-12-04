@@ -1,4 +1,3 @@
-// lib/presentation/widgets/permission_dialog.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/theme/app_theme.dart';
@@ -49,7 +48,7 @@ class PermissionDialog extends StatelessWidget {
             const SizedBox(height: 24),
             
             Text(
-              'Autorisation requise',
+              'Capture d\'écran requise',
               style: Theme.of(context).textTheme.displayMedium?.copyWith(
                     fontSize: 22,
                   ),
@@ -59,29 +58,11 @@ class PermissionDialog extends StatelessWidget {
             const SizedBox(height: 16),
             
             Text(
-              'MirrorScreen Pro a besoin de capturer votre écran pour le diffuser sur votre TV.',
+              'MirrorScreen va capturer votre écran pour le diffuser sur votre TV.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Colors.white70,
                   ),
               textAlign: TextAlign.center,
-            ),
-            
-            const SizedBox(height: 24),
-            
-            _buildPermissionItem(
-              context,
-              icon: Icons.cast_connected,
-              title: 'Capture d\'écran',
-              description: 'Pour diffuser votre contenu',
-            ),
-            
-            const SizedBox(height: 12),
-            
-            _buildPermissionItem(
-              context,
-              icon: Icons.notifications_active,
-              title: 'Notifications',
-              description: 'Pour le service en arrière-plan',
             ),
             
             const SizedBox(height: 24),
@@ -95,22 +76,36 @@ class PermissionDialog extends StatelessWidget {
                   color: Colors.amber.withOpacity(0.3),
                 ),
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  const Icon(
-                    Icons.info_outline,
-                    color: Colors.amber,
-                    size: 20,
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.info_outline,
+                        color: Colors.amber,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'À la prochaine étape',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                fontSize: 13,
+                                color: Colors.amber,
+                                fontWeight: FontWeight.bold,
+                              ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Android affichera une popup système pour confirmer',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontSize: 12,
-                            color: Colors.amber,
-                          ),
-                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Android affichera une popup système pour confirmer la capture d\'écran. Vous devez accepter cette autorisation pour que le mirroring fonctionne.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontSize: 12,
+                          color: Colors.amber.shade300,
+                        ),
+                    textAlign: TextAlign.left,
                   ),
                 ],
               ),
@@ -131,7 +126,7 @@ class PermissionDialog extends StatelessWidget {
                         ),
                         side: const BorderSide(color: Colors.white24),
                       ),
-                      child: const Text('Plus tard'),
+                      child: const Text('Annuler'),
                     ),
                   ),
                 if (!isRequired) const SizedBox(width: 12),
@@ -145,65 +140,13 @@ class PermissionDialog extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text('Autoriser'),
+                    child: const Text('Continuer'),
                   ),
                 ),
               ],
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildPermissionItem(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required String description,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.backgroundColor.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppTheme.secondaryColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              icon,
-              color: AppTheme.secondaryColor,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                ),
-                Text(
-                  description,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontSize: 12,
-                        color: Colors.white60,
-                      ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -37,6 +37,8 @@ class PermissionService {
 
     // Vérifier les permissions de base
     final notification = await Permission.notification.status;
+    final systemAlertWindow = await Permission.systemAlertWindow.status;
+    final ignoreBatteryOptimizations = await Permission.ignoreBatteryOptimizations.status;
     
     if (notification.isDenied) {
       return const PermissionResult(
@@ -49,6 +51,20 @@ class PermissionService {
       return const PermissionResult(
         status: PermissionStatus.permanentlyDenied,
         message: 'Permission de notification refusée définitivement',
+      );
+    }
+
+    if (systemAlertWindow.isDenied) {
+      return const PermissionResult(
+        status: PermissionStatus.denied,
+        message: 'Permission d\'affichage par-dessus d\'autres apps requise',
+      );
+    }
+
+    if (ignoreBatteryOptimizations.isDenied) {
+      return const PermissionResult(
+        status: PermissionStatus.denied,
+        message: 'Permission d\'exécution en arrière-plan requise',
       );
     }
 
@@ -67,7 +83,7 @@ class PermissionService {
     }
 
     try {
-      // 1. Demander la permission de notification d'abord
+      // 1. Demander la permission de notification
       final notificationStatus = await Permission.notification.request();
       
       if (notificationStatus.isPermanentlyDenied) {
@@ -84,7 +100,29 @@ class PermissionService {
         );
       }
 
-      // 2. La permission de capture d'écran sera demandée par le code natif
+      // 2. Demander la permission d'affichage par-dessus d'autres apps
+      // (nécessaire pour l'overlay en arrière-plan)
+      final systemAlertStatus = await Permission.systemAlertWindow.request();
+      
+      if (systemAlertStatus.isDenied) {
+        return const PermissionResult(
+          status: PermissionStatus.denied,
+          message: 'Permission d\'affichage par-dessus d\'autres apps refusée',
+        );
+      }
+
+      // 3. Demander l'exemption d'optimisation de batterie
+      // (pour permettre l'exécution en arrière-plan)
+      final batteryStatus = await Permission.ignoreBatteryOptimizations.request();
+      
+      if (batteryStatus.isDenied) {
+        return const PermissionResult(
+          status: PermissionStatus.denied,
+          message: 'Permission d\'exécution en arrière-plan refusée',
+        );
+      }
+
+      // 4. La permission de capture d'écran sera demandée par le code natif
       // via MediaProjection lors du démarrage du mirroring
       
       return const PermissionResult(
@@ -120,6 +158,62 @@ class PermissionService {
     }
   }
 
+  /// Demande la permission d'affichage par-dessus d'autres apps
+  Future<PermissionResult> requestOverlayPermission() async {
+    try {
+      final status = await Permission.systemAlertWindow.request();
+      
+      if (status.isGranted) {
+        return const PermissionResult(
+          status: PermissionStatus.granted,
+        );
+      } else if (status.isPermanentlyDenied) {
+        return const PermissionResult(
+          status: PermissionStatus.permanentlyDenied,
+          message: 'Veuillez activer l\'autorisation dans les paramètres',
+        );
+      } else {
+        return const PermissionResult(
+          status: PermissionStatus.denied,
+          message: 'Permission d\'overlay refusée',
+        );
+      }
+    } catch (e) {
+      return PermissionResult(
+        status: PermissionStatus.denied,
+        message: 'Erreur: $e',
+      );
+    }
+  }
+
+  /// Demande l'exemption d'optimisation de batterie
+  Future<PermissionResult> requestBatteryOptimizationExemption() async {
+    try {
+      final status = await Permission.ignoreBatteryOptimizations.request();
+      
+      if (status.isGranted) {
+        return const PermissionResult(
+          status: PermissionStatus.granted,
+        );
+      } else if (status.isPermanentlyDenied) {
+        return const PermissionResult(
+          status: PermissionStatus.permanentlyDenied,
+          message: 'Veuillez désactiver l\'optimisation de batterie dans les paramètres',
+        );
+      } else {
+        return const PermissionResult(
+          status: PermissionStatus.denied,
+          message: 'Permission d\'exécution en arrière-plan refusée',
+        );
+      }
+    } catch (e) {
+      return PermissionResult(
+        status: PermissionStatus.denied,
+        message: 'Erreur: $e',
+      );
+    }
+  }
+
   /// Ouvre les paramètres de l'application
   Future<void> openAppSettings() async {
     await openAppSettings();
@@ -128,6 +222,18 @@ class PermissionService {
   /// Vérifie si les permissions ont été définitivement refusées
   Future<bool> arePermissionsPermanentlyDenied() async {
     final notification = await Permission.notification.status;
-    return notification.isPermanentlyDenied;
+    final systemAlertWindow = await Permission.systemAlertWindow.status;
+    
+    return notification.isPermanentlyDenied || 
+           systemAlertWindow.isPermanentlyDenied;
+  }
+
+  /// Vérifie le statut de chaque permission individuellement
+  Future<Map<String, bool>> getPermissionsStatus() async {
+    return {
+      'notification': (await Permission.notification.status).isGranted,
+      'systemAlertWindow': (await Permission.systemAlertWindow.status).isGranted,
+      'ignoreBatteryOptimizations': (await Permission.ignoreBatteryOptimizations.status).isGranted,
+    };
   }
 }
